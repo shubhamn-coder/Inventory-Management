@@ -260,15 +260,32 @@ class StorageService {
   }
 
   Future<bool> registerUser(UserAccount user) async {
-    final users = getUsers();
-    if (users.any((u) => u.username.toLowerCase() == user.username.toLowerCase())) {
+    // Block registration with Super Admin email or username
+    if (user.email.trim().toLowerCase() == _superAdminEmail.toLowerCase() ||
+        user.username.trim().toLowerCase() == 'super admin') {
       return false;
     }
-    users.add(user);
+
+    final users = getUsers();
+    if (users.any((u) => u.username.toLowerCase() == user.username.toLowerCase() ||
+                         u.email.toLowerCase() == user.email.toLowerCase())) {
+      return false;
+    }
+
+    // Strictly enforce Member role - no registration as Admin allowed
+    final sanitizedUser = UserAccount(
+      username: user.username.trim(),
+      email: user.email.trim(),
+      password: user.password,
+      role: 'Member',
+      createdAt: DateTime.now(),
+    );
+
+    users.add(sanitizedUser);
     final raw = users.map((u) => jsonEncode(u.toJson())).toList();
     await _prefs.setStringList(_usersKey, raw);
-    await setCurrentUser(user.username, role: user.role, isViewOnly: false);
-    await logAuditEvent('User Registered', 'New user account created: ${user.username} (${user.role})');
+    await setCurrentUser(sanitizedUser.username, role: 'Member', isViewOnly: false);
+    await logAuditEvent('User Registered', 'New member account created: ${sanitizedUser.username}');
     return true;
   }
 

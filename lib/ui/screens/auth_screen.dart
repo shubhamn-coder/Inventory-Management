@@ -32,7 +32,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _regUserController = TextEditingController();
   final _regEmailController = TextEditingController();
   final _regPassController = TextEditingController();
-  String _selectedRole = 'Member';
   String? _regError;
 
   @override
@@ -109,11 +108,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
 
+    if (email.toLowerCase() == 'shubhamn5488@gmail.com') {
+      setState(() => _regError = 'This email is reserved for system administration.');
+      return;
+    }
+
     final newAccount = UserAccount(
       username: user,
       email: email,
       password: pass,
-      role: _selectedRole,
+      role: 'Member',
       createdAt: DateTime.now(),
     );
 
@@ -390,46 +394,17 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 style: const TextStyle(color: Colors.redAccent, fontSize: 13),
               ),
             ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _regUserController,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: 'Username',
-                    labelStyle: const TextStyle(color: Colors.grey),
-                    prefixIcon: const Icon(Icons.person, color: Colors.cyanAccent, size: 18),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedRole,
-                  dropdownColor: const Color(0xFF1E293B),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    labelText: 'Role',
-                    labelStyle: const TextStyle(color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFF0F172A),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'Member', child: Text('Member')),
-                    DropdownMenuItem(value: 'Lab Lead', child: Text('Lab Lead')),
-                    DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedRole = val);
-                  },
-                ),
-              ),
-            ],
+          TextField(
+            controller: _regUserController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: InputDecoration(
+              labelText: 'Username',
+              labelStyle: const TextStyle(color: Colors.grey),
+              prefixIcon: const Icon(Icons.person, color: Colors.cyanAccent, size: 18),
+              filled: true,
+              fillColor: const Color(0xFF0F172A),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
