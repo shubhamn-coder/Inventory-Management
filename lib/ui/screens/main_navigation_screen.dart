@@ -95,12 +95,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                color: Colors.cyan.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.cyanAccent.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ],
               ),
-              child: const Icon(Icons.precision_manufacturing, color: Colors.cyanAccent, size: 22),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/app_logo.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.precision_manufacturing, color: Colors.cyanAccent, size: 20),
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             const Text(

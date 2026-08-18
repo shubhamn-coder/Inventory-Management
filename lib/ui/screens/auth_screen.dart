@@ -164,10 +164,29 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.precision_manufacturing, color: Colors.cyanAccent, size: 32),
-                          SizedBox(width: 12),
-                          Text(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.cyanAccent.withValues(alpha: 0.3),
+                                  blurRadius: 10,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/app_logo.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.precision_manufacturing, color: Colors.cyanAccent, size: 28),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
                             'ROBO-STOCK',
                             style: TextStyle(
                               fontSize: 24,

@@ -107,26 +107,28 @@ class _SplashScreenState extends State<SplashScreen>
                     ScaleTransition(
                       scale: _pulseAnimation,
                       child: Container(
-                        padding: const EdgeInsets.all(24),
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF1E293B),
-                          border: Border.all(
-                            color: Colors.cyanAccent.withValues(alpha: 0.6),
-                            width: 2,
-                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.cyanAccent.withValues(alpha: 0.3),
-                              blurRadius: 25,
-                              spreadRadius: 5,
+                              color: Colors.cyanAccent.withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              spreadRadius: 6,
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.precision_manufacturing_rounded,
-                          size: 72,
-                          color: Colors.cyanAccent,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/app_logo.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.precision_manufacturing_rounded,
+                              size: 72,
+                              color: Colors.cyanAccent,
+                            ),
+                          ),
                         ),
                       ),
                     ),
