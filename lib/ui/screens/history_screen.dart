@@ -330,54 +330,53 @@ class _HistoryScreenState extends State<HistoryScreen> {
           // Header Action Banner
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.cyan.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.history_edu_rounded, color: Colors.cyanAccent, size: 28),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Inventory History & Audit Snapshots',
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.cyan.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.history_edu_rounded, color: Colors.cyanAccent, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Inventory History',
                             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Review past inventory states with Author, Day, Date, and exact timestamp.',
-                            style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (!isViewOnly)
-                      ElevatedButton.icon(
-                        onPressed: _showSaveSnapshotDialog,
-                        icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                        label: const Text('SAVE SNAPSHOT'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.cyanAccent,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          textStyle: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
+                        if (!isViewOnly)
+                          ElevatedButton.icon(
+                            onPressed: _showSaveSnapshotDialog,
+                            icon: const Icon(Icons.camera_alt_rounded, size: 14),
+                            label: const Text('SAVE SNAPSHOT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.cyanAccent,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Record and review historical states with author name, day, date, and exact timestamps.',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    ),
                   ],
                 ),
               ),
