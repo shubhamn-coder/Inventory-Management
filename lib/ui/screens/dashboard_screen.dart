@@ -5,17 +5,19 @@ import '../../domain/models/product.dart';
 import '../dialogs/add_product_dialog.dart';
 import '../dialogs/create_inventory_dialog.dart';
 import '../dialogs/datasheet_dialog.dart';
-import '../dialogs/settings_dialog.dart';
-import 'spreadsheet_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final StorageService storageService;
-  final VoidCallback onLogout;
+  final String? selectedInventoryId;
+  final Function(String?) onInventoryChanged;
+  final VoidCallback onDataChanged;
 
   const DashboardScreen({
     super.key,
     required this.storageService,
-    required this.onLogout,
+    required this.selectedInventoryId,
+    required this.onInventoryChanged,
+    required this.onDataChanged,
   });
 
   @override
@@ -23,43 +25,20 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  List<Inventory> _inventories = [];
-  List<Product> _products = [];
-
-  String? _selectedInventoryId; // null = All Inventories
   String _searchQuery = '';
   String? _selectedCategoryFilter;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
+  List<Inventory> get _inventories => widget.storageService.getInventories();
+  List<Product> get _products => widget.storageService.getProducts();
 
-  void _loadData() {
-    setState(() {
-      _inventories = widget.storageService.getInventories();
-      _products = widget.storageService.getProducts();
-      if (_inventories.isNotEmpty && _selectedInventoryId == null) {
-        _selectedInventoryId = _inventories.first.id;
-      }
-    });
-  }
-
-  // REQUIREMENT #6: Search products based on Name and Company
   List<Product> get _filteredProducts {
     return _products.where((product) {
-      // 1. Inventory filter
-      if (_selectedInventoryId != null && product.inventoryId != _selectedInventoryId) {
+      if (widget.selectedInventoryId != null && product.inventoryId != widget.selectedInventoryId) {
         return false;
       }
-
-      // 2. Subcategory filter
       if (_selectedCategoryFilter != null && product.subcategory != _selectedCategoryFilter) {
         return false;
       }
-
-      // 3. Search query filter: Name and Company
       if (_searchQuery.trim().isNotEmpty) {
         final query = _searchQuery.trim().toLowerCase();
         final matchesName = product.name.toLowerCase().contains(query);
@@ -69,28 +48,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         return matchesName || matchesCompany || matchesSubcat || matchesLoc;
       }
-
       return true;
     }).toList();
   }
 
   void _openCreateInventoryDialog() {
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+    if (isViewOnly) return;
+
     showDialog(
       context: context,
       builder: (_) => CreateInventoryDialog(
         onCreated: (newInv) async {
           await widget.storageService.addInventory(newInv);
-          setState(() {
-            _selectedInventoryId = newInv.id;
-          });
-          _loadData();
+          widget.onInventoryChanged(newInv.id);
+          widget.onDataChanged();
+          setState(() {});
         },
       ),
     );
   }
 
   void _openAddProductDialog([Product? existing]) {
-    final activeId = _selectedInventoryId ?? (_inventories.isNotEmpty ? _inventories.first.id : '');
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+    if (isViewOnly) return;
+
+    final activeId = widget.selectedInventoryId ?? (_inventories.isNotEmpty ? _inventories.first.id : '');
     if (activeId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please create an inventory group first.')),
@@ -110,55 +93,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
           } else {
             await widget.storageService.addProduct(prod);
           }
-          _loadData();
+          widget.onDataChanged();
+          setState(() {});
         },
       ),
     );
   }
 
-  void _openSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => SettingsDialog(storageService: widget.storageService),
-    );
-  }
-
-  void _openSpreadsheetScreen() {
-    final activeInv = _inventories.firstWhere(
-      (i) => i.id == _selectedInventoryId,
-      orElse: () => Inventory(id: '', name: 'All Inventories', createdAt: DateTime.now()),
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SpreadsheetScreen(
-          products: _filteredProducts,
-          inventories: _inventories,
-          activeInventory: _selectedInventoryId != null ? activeInv : null,
-        ),
-      ),
-    );
-  }
-
   void _deleteProduct(Product product) async {
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+    if (isViewOnly) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Delete Product?', style: TextStyle(color: Colors.white)),
+        title: const Text('Delete Product?', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Text(
           'Are you sure you want to delete "${product.name}"?',
-          style: const TextStyle(color: Colors.grey),
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey, fontSize: 12)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('DELETE'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            child: const Text('DELETE', style: TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -166,16 +132,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (confirm == true) {
       await widget.storageService.deleteProduct(product.id);
-      _loadData();
+      widget.onDataChanged();
+      setState(() {});
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredProducts;
-    final currentUser = widget.storageService.getCurrentUser() ?? 'Member';
+    final isViewOnly = widget.storageService.isViewOnlyMode();
 
-    // Summary Metrics
     final totalProductsCount = filtered.length;
     final totalUnitsCount = filtered.fold<int>(0, (sum, p) => sum + p.quantity);
     final totalValue = filtered.fold<double>(0.0, (sum, p) => sum + ((p.cost ?? 0.0) * p.quantity));
@@ -190,206 +156,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
-        elevation: 4,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.cyan.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+      floatingActionButton: isViewOnly
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _openAddProductDialog(),
+              icon: const Icon(Icons.add_rounded, color: Colors.black, size: 20),
+              label: const Text(
+                'Add Item',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
               ),
-              child: const Icon(Icons.precision_manufacturing, color: Colors.cyanAccent, size: 24),
+              backgroundColor: Colors.cyanAccent,
+              elevation: 4,
             ),
-            const SizedBox(width: 10),
-            const Text(
-              'ROBO-STOCK',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-                color: Colors.white,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // Inventory Group Switcher
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                value: _selectedInventoryId,
-                dropdownColor: const Color(0xFF1E293B),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.cyanAccent),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('🌐 All Inventories Combined'),
-                  ),
-                  ..._inventories.map((inv) => DropdownMenuItem<String?>(
-                        value: inv.id,
-                        child: Text('📦 ${inv.name}'),
-                      )),
-                ],
-                onChanged: (val) {
-                  setState(() => _selectedInventoryId = val);
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // REQUIREMENT #4: Create Inventory Option
-          ElevatedButton.icon(
-            onPressed: _openCreateInventoryDialog,
-            icon: const Icon(Icons.create_new_folder, size: 16),
-            label: const Text('+ INVENTORY'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyan.withValues(alpha: 0.2),
-              foregroundColor: Colors.cyanAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // REQUIREMENT #7: Spreadsheet Option
-          ElevatedButton.icon(
-            onPressed: _openSpreadsheetScreen,
-            icon: const Icon(Icons.table_chart, size: 16),
-            label: const Text('SPREADSHEET'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyan.withValues(alpha: 0.2),
-              foregroundColor: Colors.cyanAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Settings Button (Change Passcode)
-          IconButton(
-            tooltip: 'Security Settings & Passcode',
-            icon: const Icon(Icons.settings, color: Colors.cyanAccent),
-            onPressed: _openSettingsDialog,
-          ),
-
-          // Logout Button
-          IconButton(
-            tooltip: 'Sign Out ($currentUser)',
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            onPressed: widget.onLogout,
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
       body: CustomScrollView(
         slivers: [
-          // Metrics Summary Cards
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row of Summary Metrics
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isMobile = constraints.maxWidth < 600;
-                      return Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _buildStatCard(
-                            title: 'Total Components',
-                            value: '$totalProductsCount Types',
-                            subtitle: '$totalUnitsCount total units in stock',
-                            icon: Icons.category_rounded,
-                            color: Colors.cyanAccent,
-                            width: isMobile ? (constraints.maxWidth - 12) / 2 : 210,
-                          ),
-                          _buildStatCard(
-                            title: 'Total Stock Quantity',
-                            value: '$totalUnitsCount Units',
-                            subtitle: 'Available for robotics builds',
-                            icon: Icons.numbers_rounded,
-                            color: Colors.blueAccent,
-                            width: isMobile ? (constraints.maxWidth - 12) / 2 : 210,
-                          ),
-                          _buildStatCard(
-                            title: 'Inventory Value',
-                            value: '₹${totalValue.toStringAsFixed(2)}',
-                            subtitle: 'Estimated equipment value',
-                            icon: Icons.currency_rupee_rounded,
-                            color: Colors.greenAccent,
-                            width: isMobile ? (constraints.maxWidth - 12) / 2 : 210,
-                          ),
-                          _buildStatCard(
-                            title: 'Low Stock Alert',
-                            value: '$lowStockCount Items',
-                            subtitle: 'Units count ≤ 3 requiring reorder',
-                            icon: Icons.warning_amber_rounded,
-                            color: lowStockCount > 0 ? Colors.amberAccent : Colors.grey,
-                            width: isMobile ? (constraints.maxWidth - 12) / 2 : 210,
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  // REQUIREMENT #6: Search bar based on Name and Company
+                  // Top Row: Inventory Selector & + Inventory Button
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
-                          onChanged: (val) => setState(() => _searchQuery = val),
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: '🔍 Search by Product Name, Company (e.g. Adafruit), Subcategory...',
-                            hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                            prefixIcon: const Icon(Icons.search, color: Colors.cyanAccent),
-                            filled: true,
-                            fillColor: const Color(0xFF1E293B),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.cyan.withValues(alpha: 0.3)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.cyanAccent, width: 2),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String?>(
+                              value: widget.selectedInventoryId,
+                              dropdownColor: const Color(0xFF1E293B),
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              icon: const Icon(Icons.arrow_drop_down, color: Colors.cyanAccent, size: 20),
+                              isExpanded: true,
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('All Inventories Combined', overflow: TextOverflow.ellipsis),
+                                ),
+                                ..._inventories.map((inv) => DropdownMenuItem<String?>(
+                                      value: inv.id,
+                                      child: Text(inv.name, overflow: TextOverflow.ellipsis),
+                                    )),
+                              ],
+                              onChanged: (val) {
+                                widget.onInventoryChanged(val);
+                                setState(() {});
+                              },
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-
-                      // REQUIREMENT #5: Add Product Button
-                      ElevatedButton.icon(
-                        onPressed: () => _openAddProductDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('+ ADD PRODUCT'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.cyanAccent,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      if (!isViewOnly) ...[
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: _openCreateInventoryDialog,
+                          icon: const Icon(Icons.create_new_folder_rounded, size: 14),
+                          label: const Text('+ INVENTORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.cyan.withValues(alpha: 0.2),
+                            foregroundColor: Colors.cyanAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
-                  // Category Filter Chips
+                  // Top Search Bar
+                  TextField(
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search by Name, Company, Location...',
+                      hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      prefixIcon: const Icon(Icons.search, color: Colors.cyanAccent, size: 18),
+                      filled: true,
+                      fillColor: const Color(0xFF1E293B),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.cyan.withValues(alpha: 0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Colors.cyanAccent, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Condensed Single Strip Info Banner
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.cyan.withValues(alpha: 0.2)),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildStripBadge(icon: Icons.category_rounded, label: '$totalProductsCount Types', color: Colors.cyanAccent),
+                          _buildSeparator(),
+                          _buildStripBadge(icon: Icons.numbers_rounded, label: '$totalUnitsCount Units', color: Colors.blueAccent),
+                          _buildSeparator(),
+                          _buildStripBadge(icon: Icons.currency_rupee_rounded, label: '₹${totalValue.toStringAsFixed(0)}', color: Colors.greenAccent),
+                          if (lowStockCount > 0) ...[
+                            _buildSeparator(),
+                            _buildStripBadge(icon: Icons.warning_amber_rounded, label: '$lowStockCount Low Stock', color: Colors.amberAccent),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Filter Chips
                   if (categoriesList.isNotEmpty)
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -401,21 +293,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             selectedColor: Colors.cyanAccent,
                             labelStyle: TextStyle(
                               color: _selectedCategoryFilter == null ? Colors.black : Colors.white,
-                              fontSize: 12,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             onSelected: (_) => setState(() => _selectedCategoryFilter = null),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           ...categoriesList.map((cat) => Padding(
-                                padding: const EdgeInsets.only(right: 8.0),
+                                padding: const EdgeInsets.only(right: 6.0),
                                 child: ChoiceChip(
                                   label: Text(cat),
                                   selected: _selectedCategoryFilter == cat,
                                   selectedColor: Colors.cyanAccent,
                                   labelStyle: TextStyle(
                                     color: _selectedCategoryFilter == cat ? Colors.black : Colors.white,
-                                    fontSize: 12,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
                                   ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   onSelected: (selected) {
                                     setState(() {
                                       _selectedCategoryFilter = selected ? cat : null;
@@ -431,43 +327,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Products Component Grid
+          // 2-COLUMN ADJACENT TILES LAYOUT (Requirement: 2 tiles visible adjacent on mobile screen)
           filtered.isEmpty
               ? SliverFillRemaining(
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey[600]),
-                        const SizedBox(height: 16),
+                        Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[600]),
+                        const SizedBox(height: 10),
                         Text(
-                          'No components found matching search or filter.',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddProductDialog(),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add Component to Inventory'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black),
+                          'No components found.',
+                          style: TextStyle(color: Colors.grey[400], fontSize: 13),
                         ),
                       ],
                     ),
                   ),
                 )
               : SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 80),
                   sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 340,
-                      mainAxisExtent: 260,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                      maxCrossAxisExtent: 220, // Forces exactly 2 tiles on mobile width (360-450px)
+                      mainAxisExtent: 205, // Compact vertical height
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final product = filtered[index];
-                        return _buildProductCard(product);
+                        return _buildCompactTile(product, isViewOnly);
                       },
                       childCount: filtered.length,
                     ),
@@ -478,69 +367,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required String subtitle,
+  Widget _buildStripBadge({
     required IconData icon,
+    required String label,
     required Color color,
-    required double width,
   }) {
-    return Container(
-      width: width,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-              Icon(icon, color: color, size: 20),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-        ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSeparator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Container(
+        width: 3,
+        height: 3,
+        decoration: const BoxDecoration(
+          color: Colors.grey,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
 
-  Widget _buildProductCard(Product product) {
+  // Compact 2-Column Tile Card
+  Widget _buildCompactTile(Product product, bool isViewOnly) {
     final hasDatasheet = product.datasheetUrl != null && product.datasheetUrl!.isNotEmpty;
     final isLowStock = product.quantity <= 3;
+    final cost = product.cost ?? 0.0;
+    final totalVal = cost * product.quantity;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isLowStock ? Colors.amber.withValues(alpha: 0.6) : Colors.cyan.withValues(alpha: 0.2),
+          color: isLowStock ? Colors.amber.withValues(alpha: 0.6) : Colors.cyan.withValues(alpha: 0.25),
           width: isLowStock ? 1.5 : 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Name & Quantity Badge
+          // Header: Name & Quantity Pill
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -550,150 +429,150 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontSize: 12,
+                    height: 1.2,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
-
-              // Quantity Badge (Compulsory field)
+              const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: isLowStock ? Colors.amber.withValues(alpha: 0.2) : Colors.cyan.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isLowStock ? Colors.amberAccent : Colors.cyanAccent,
-                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isLowStock ? Colors.amberAccent : Colors.cyanAccent),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isLowStock ? Icons.warning_amber : Icons.inventory_2,
-                      size: 12,
-                      color: isLowStock ? Colors.amberAccent : Colors.cyanAccent,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${product.quantity}x',
-                      style: TextStyle(
-                        color: isLowStock ? Colors.amberAccent : Colors.cyanAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '${product.quantity}x',
+                  style: TextStyle(
+                    color: isLowStock ? Colors.amberAccent : Colors.cyanAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
-          // Subcategory & Location tags
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: [
-              if (product.subcategory != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A),
-                    borderRadius: BorderRadius.circular(6),
+          // Subcategory & Company Micro-badges
+          if (product.subcategory != null || product.company != null)
+            Wrap(
+              spacing: 4,
+              runSpacing: 3,
+              children: [
+                if (product.subcategory != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      product.subcategory!,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 9),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  child: Text(
-                    product.subcategory!,
-                    style: TextStyle(color: Colors.grey[300], fontSize: 11),
+                if (product.company != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      product.company!,
+                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 9),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              if (product.company != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '🏢 ${product.company!}',
-                    style: const TextStyle(color: Colors.purpleAccent, fontSize: 11),
-                  ),
-                ),
-              if (product.location != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '📍 ${product.location!}',
-                    style: const TextStyle(color: Colors.blueAccent, fontSize: 11),
-                  ),
-                ),
-            ],
-          ),
+              ],
+            ),
           const Spacer(),
 
-          // Cost per unit (in Indian Rupees)
-          if (product.cost != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                'Cost: ₹${product.cost!.toStringAsFixed(2)} / unit (Total: ₹${(product.cost! * product.quantity).toStringAsFixed(2)})',
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+          // Cost Info
+          if (product.cost != null) ...[
+            Text(
+              '₹${cost.toStringAsFixed(0)} / unit',
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
             ),
+            Text(
+              'Tot: ₹${totalVal.toStringAsFixed(0)}',
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold),
+            ),
+          ] else
+            const Text(
+              'No cost recorded',
+              style: TextStyle(color: Colors.grey, fontSize: 9),
+            ),
+          const SizedBox(height: 4),
 
-          // Action Buttons: Datasheet (Requirement #8), Edit, Delete
+          // Action Buttons Bar
           Row(
             children: [
-              // Datasheet button
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => DatasheetDialog(product: product),
-                    );
-                  },
-                  icon: Icon(
-                    hasDatasheet ? Icons.picture_as_pdf : Icons.description_outlined,
-                    size: 14,
-                    color: hasDatasheet ? Colors.cyanAccent : Colors.grey,
-                  ),
-                  label: Text(
-                    hasDatasheet ? 'DATASHEET' : 'NO PDF',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: hasDatasheet ? Colors.cyanAccent : Colors.grey,
+              // Datasheet Icon/Button
+              InkWell(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => DatasheetDialog(product: product),
+                  );
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: hasDatasheet ? Colors.cyan.withValues(alpha: 0.15) : const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: hasDatasheet ? Colors.cyanAccent.withValues(alpha: 0.4) : Colors.grey.withValues(alpha: 0.3),
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    side: BorderSide(
-                      color: hasDatasheet ? Colors.cyan.withValues(alpha: 0.4) : Colors.grey.withValues(alpha: 0.3),
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        hasDatasheet ? Icons.picture_as_pdf : Icons.description_outlined,
+                        size: 11,
+                        color: hasDatasheet ? Colors.cyanAccent : Colors.grey,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'PDF',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: hasDatasheet ? Colors.cyanAccent : Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const Spacer(),
 
-              IconButton(
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-                icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.cyanAccent),
-                onPressed: () => _openAddProductDialog(product),
-              ),
-              IconButton(
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                onPressed: () => _deleteProduct(product),
-              ),
+              // Edit & Delete Buttons
+              if (!isViewOnly) ...[
+                InkWell(
+                  onTap: () => _openAddProductDialog(product),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.edit_outlined, size: 15, color: Colors.cyanAccent),
+                  ),
+                ),
+                InkWell(
+                  onTap: () => _deleteProduct(product),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.delete_outline, size: 15, color: Colors.redAccent),
+                  ),
+                ),
+              ],
             ],
           ),
         ],

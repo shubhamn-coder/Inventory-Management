@@ -192,16 +192,17 @@ class _SettingsDialogState extends State<SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+          child: const Text('CLOSE', style: TextStyle(color: Colors.grey, fontSize: 12)),
         ),
         ElevatedButton.icon(
           onPressed: _handleChangePasscode,
-          icon: const Icon(Icons.check_circle_outline),
-          label: const Text('UPDATE PASSCODE'),
+          icon: const Icon(Icons.check_circle_outline, size: 16),
+          label: const Text('UPDATE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.cyanAccent,
             foregroundColor: Colors.black,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
           ),
         ),
       ],

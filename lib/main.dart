@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'data/services/storage_service.dart';
 import 'ui/screens/auth_screen.dart';
-import 'ui/screens/dashboard_screen.dart';
+import 'ui/screens/main_navigation_screen.dart';
 import 'ui/screens/splash_screen.dart';
 
 void main() async {
@@ -27,9 +27,8 @@ class _RoboticsInventoryAppState extends State<RoboticsInventoryApp> {
   @override
   void initState() {
     super.initState();
-    // Check if user session already exists
     final currentUser = widget.storageService.getCurrentUser();
-    if (currentUser != null) {
+    if (currentUser.isNotEmpty && currentUser != 'Member') {
       _isAuthenticated = true;
     }
   }
@@ -68,11 +67,21 @@ class _RoboticsInventoryAppState extends State<RoboticsInventoryApp> {
           surface: Color(0xFF1E293B),
         ),
         textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF1E293B),
+          indicatorColor: Colors.cyanAccent,
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12);
+            }
+            return const TextStyle(color: Colors.grey, fontSize: 12);
+          }),
+        ),
       ),
       home: _showSplash
           ? SplashScreen(onSplashComplete: _onSplashComplete)
           : (_isAuthenticated
-              ? DashboardScreen(
+              ? MainNavigationScreen(
                   storageService: widget.storageService,
                   onLogout: _onLogout,
                 )

@@ -57,15 +57,26 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _codeError = null);
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      setState(() => _codeError = 'Please enter the access code');
+      setState(() => _codeError = 'Please enter an access code');
       return;
     }
 
-    if (widget.storageService.verifyPasscode(code)) {
-      widget.storageService.setCurrentUser('Passcode User');
+    final result = widget.storageService.verifyAccessCode(code);
+    if (result['valid'] == true) {
+      final isViewOnly = result['isViewOnly'] as bool;
+      final role = result['role'] as String;
+      widget.storageService.setCurrentUser(
+        isViewOnly ? 'Guest (View Only)' : 'Passcode User',
+        role: role,
+        isViewOnly: isViewOnly,
+      );
+      widget.storageService.logAuditEvent(
+        'Code Login',
+        'Entered via access code ($role)',
+      );
       widget.onAuthenticated();
     } else {
-      setState(() => _codeError = 'Invalid Access Code. (Default code is 123456)');
+      setState(() => _codeError = 'Invalid Access Code. Please check and try again.');
     }
   }
 
@@ -195,7 +206,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
                 // Tab Views Content
                 SizedBox(
-                  height: 340,
+                  height: 350,
                   child: TabBarView(
                     controller: _tabController,
                     children: [
@@ -225,19 +236,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Enter Club Access Code',
+            'Enter Access Code',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 6),
           Text(
-            'Members can enter using the shared lab passcode. Default code: 123456 (editable in Settings after login).',
+            'Enter your team access code or guest code to enter the inventory portal.',
             style: TextStyle(fontSize: 12, color: Colors.grey[400]),
           ),
           const SizedBox(height: 20),
           TextField(
             controller: _codeController,
             obscureText: true,
-            keyboardType: TextInputType.number,
+            keyboardType: TextInputType.text,
             style: const TextStyle(color: Colors.white, letterSpacing: 6, fontSize: 20),
             decoration: InputDecoration(
               hintText: '••••••',
@@ -379,7 +390,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
+                  value: _selectedRole,
                   dropdownColor: const Color(0xFF1E293B),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(

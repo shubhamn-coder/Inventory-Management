@@ -207,27 +207,6 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
 
-              // Top right Skip button
-              Positioned(
-                top: 16,
-                right: 16,
-                child: TextButton.icon(
-                  onPressed: widget.onSplashComplete,
-                  icon: const Icon(Icons.skip_next_rounded, size: 18, color: Colors.cyanAccent),
-                  label: const Text(
-                    'SKIP (3s)',
-                    style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold),
-                  ),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.cyan.withValues(alpha: 0.1),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(color: Colors.cyan.withValues(alpha: 0.3)),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
