@@ -56,7 +56,7 @@ class _RoboticsInventoryAppState extends State<RoboticsInventoryApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Robotics Club Inventory Manager',
+      title: 'RoboStock',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
