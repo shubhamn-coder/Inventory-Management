@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/access_code.dart';
 import '../../domain/models/audit_log.dart';
 import '../../domain/models/history_snapshot.dart';
@@ -9,6 +11,9 @@ import '../../domain/models/product.dart';
 import '../../domain/models/user_account.dart';
 
 class StorageService {
+  static const String supabaseUrl = 'https://tufwrobqtidnteapaunv.supabase.co';
+  static const String supabaseAnonKey = 'sb_publishable_ZbOUXXtpQ-iCa_0UOMGFVw_NkJXvq3v';
+
   static const String _passcodeKey = 'access_passcode';
   static const String _inventoriesKey = 'inventories_list';
   static const String _productsKey = 'products_list';
@@ -19,21 +24,147 @@ class StorageService {
   static const String _accessCodesKey = 'generated_access_codes';
   static const String _auditLogsKey = 'security_audit_logs';
   static const String _historyKey = 'inventory_history_snapshots';
-  static const String _initialSeedKey = 'initial_seed_done_v3';
+  static const String _initialSeedKey = 'initial_seed_done_v4';
 
-  // Confidential Super Admin Credentials (Not visible anywhere in public UI)
+  // Confidential Super Admin Credentials
   static const String _superAdminEmail = 'shubhamn5488@gmail.com';
   static const String _superAdminPassword = 'roboiswild';
 
   final SharedPreferences _prefs;
+  final SupabaseClient? _supabase;
 
-  StorageService(this._prefs);
+  StorageService(this._prefs, [this._supabase]);
 
   static Future<StorageService> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final service = StorageService(prefs);
+    SupabaseClient? client;
+
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+      client = Supabase.instance.client;
+      if (kDebugMode) print('Connected to Supabase Cloud PostgreSQL successfully!');
+    } catch (e) {
+      if (kDebugMode) print('Supabase initialization fallback: $e');
+    }
+
+    final service = StorageService(prefs, client);
+    await service._syncFromSupabase();
     await service._seedSampleDataIfNeeded();
     return service;
+  }
+
+  // --- CLOUD SYNC ENGINE ---
+  Future<void> _syncFromSupabase() async {
+    if (_supabase == null) return;
+    try {
+      // 1. Fetch Inventories
+      final invRows = await _supabase.from('inventories').select().order('created_at', ascending: true);
+      if (invRows.isNotEmpty) {
+        final inventories = invRows.map((r) => Inventory(
+          id: r['id'] as String,
+          name: r['name'] as String,
+          description: (r['description'] as String?) ?? '',
+          createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+        )).toList();
+        final raw = inventories.map((i) => jsonEncode(i.toJson())).toList();
+        await _prefs.setStringList(_inventoriesKey, raw);
+      }
+
+      // 2. Fetch Products
+      final prodRows = await _supabase.from('products').select().order('created_at', ascending: true);
+      if (prodRows.isNotEmpty) {
+        final products = prodRows.map((r) => Product(
+          id: r['id'] as String,
+          inventoryId: r['inventory_id'] as String,
+          name: r['name'] as String,
+          quantity: (r['quantity'] as num).toInt(),
+          cost: r['cost'] != null ? (r['cost'] as num).toDouble() : null,
+          subcategory: r['subcategory'] as String?,
+          location: r['location'] as String?,
+          company: r['company'] as String?,
+          datasheetUrl: r['datasheet_url'] as String?,
+          datasheetType: r['datasheet_type'] as String?,
+          datasheetName: r['datasheet_name'] as String?,
+          notes: r['notes'] as String?,
+          createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+        )).toList();
+        final raw = products.map((p) => jsonEncode(p.toJson())).toList();
+        await _prefs.setStringList(_productsKey, raw);
+      }
+
+      // 3. Fetch Access Codes
+      final codeRows = await _supabase.from('access_codes').select().order('created_at', ascending: true);
+      if (codeRows.isNotEmpty) {
+        final codes = codeRows.map((r) => AccessCode(
+          id: r['id'] as String,
+          code: r['code'] as String,
+          permission: (r['permission'] as String?) ?? 'view',
+          createdBy: (r['created_by'] as String?) ?? 'Admin',
+          createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+        )).toList();
+        final raw = codes.map((c) => jsonEncode(c.toJson())).toList();
+        await _prefs.setStringList(_accessCodesKey, raw);
+      }
+
+      // 4. Fetch History Snapshots
+      final snapRows = await _supabase.from('history_snapshots').select().order('timestamp', ascending: false);
+      if (snapRows.isNotEmpty) {
+        final snaps = snapRows.map((r) {
+          List<Product> productsList = [];
+          if (r['products'] != null) {
+            final rawList = r['products'] is String ? jsonDecode(r['products']) as List : r['products'] as List;
+            productsList = rawList.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
+          }
+
+          return HistorySnapshot(
+            id: r['id'] as String,
+            inventoryId: (r['inventory_id'] as String?) ?? '',
+            inventoryName: r['inventory_name'] as String,
+            authorName: r['author_name'] as String,
+            timestamp: DateTime.tryParse(r['timestamp']?.toString() ?? '') ?? DateTime.now(),
+            dayOfWeek: (r['day_of_week'] as String?) ?? '',
+            formattedDate: (r['formatted_date'] as String?) ?? '',
+            formattedTime: (r['formatted_time'] as String?) ?? '',
+            totalProducts: (r['total_products'] as num?)?.toInt() ?? 0,
+            totalQuantity: (r['total_quantity'] as num?)?.toInt() ?? 0,
+            totalValue: (r['total_value'] as num?)?.toDouble() ?? 0.0,
+            products: productsList,
+            notes: (r['notes'] as String?) ?? '',
+          );
+        }).toList();
+        final raw = snaps.map((s) => jsonEncode(s.toJson())).toList();
+        await _prefs.setStringList(_historyKey, raw);
+      }
+
+      // 5. Fetch Audit Logs
+      final logRows = await _supabase.from('audit_logs').select().order('timestamp', ascending: false).limit(100);
+      if (logRows.isNotEmpty) {
+        final logs = logRows.map((r) => AuditLog(
+          id: r['id'] as String,
+          action: r['action'] as String,
+          actor: r['actor'] as String,
+          details: (r['details'] as String?) ?? '',
+          timestamp: DateTime.tryParse(r['timestamp']?.toString() ?? '') ?? DateTime.now(),
+          isAlert: (r['is_alert'] as bool?) ?? false,
+        )).toList();
+        final raw = logs.map((l) => jsonEncode(l.toJson())).toList();
+        await _prefs.setStringList(_auditLogsKey, raw);
+      }
+
+      // 6. Fetch App Settings (Passcode)
+      final settingRows = await _supabase.from('app_settings').select().eq('key', _passcodeKey);
+      if (settingRows.isNotEmpty) {
+        final pass = settingRows.first['value'] as String?;
+        if (pass != null && pass.isNotEmpty) {
+          await _prefs.setString(_passcodeKey, pass);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) print('Supabase sync notice: $e');
+    }
   }
 
   // --- ACCESS CODE & PASSCODE ---
@@ -49,6 +180,7 @@ class StorageService {
     final oldCode = getPasscode();
     final res = await _prefs.setString(_passcodeKey, newCode);
     if (res) {
+      _pushSettingToSupabase(_passcodeKey, newCode);
       await logAuditEvent(
         'Passcode Changed',
         'Primary access passcode updated from "$oldCode" to "$newCode"',
@@ -58,17 +190,20 @@ class StorageService {
     return res;
   }
 
-  /// Verifies a passcode or custom generated access code.
-  /// Returns a map with {'valid': bool, 'isViewOnly': bool, 'role': String}
+  void _pushSettingToSupabase(String key, String value) {
+    if (_supabase == null) return;
+    _supabase.from('app_settings').upsert({'key': key, 'value': value}).catchError((e) {
+      if (kDebugMode) print('Supabase settings push error: $e');
+    });
+  }
+
   Map<String, dynamic> verifyAccessCode(String inputCode) {
     final trimmed = inputCode.trim();
 
-    // 1. Check primary master passcode (Default edit access)
     if (getPasscode().trim() == trimmed) {
       return {'valid': true, 'isViewOnly': false, 'role': 'Member'};
     }
 
-    // 2. Check generated custom access codes
     final customCodes = getAccessCodes();
     for (final ac in customCodes) {
       if (ac.code.trim() == trimmed) {
@@ -83,7 +218,7 @@ class StorageService {
     return {'valid': false, 'isViewOnly': false, 'role': 'None'};
   }
 
-  // --- ACCESS CODES GENERATOR (Requirement #11) ---
+  // --- ACCESS CODES GENERATOR ---
   List<AccessCode> getAccessCodes() {
     final raw = _prefs.getStringList(_accessCodesKey) ?? [];
     return raw.map((str) => AccessCode.fromJson(jsonDecode(str))).toList();
@@ -99,7 +234,18 @@ class StorageService {
     codes.add(accessCode);
     await saveAccessCodes(codes);
 
-    // If Edit code is generated, log an alert event so Super Admin is notified!
+    if (_supabase != null) {
+      _supabase.from('access_codes').upsert({
+        'id': accessCode.id,
+        'code': accessCode.code,
+        'permission': accessCode.permission,
+        'created_by': accessCode.createdBy,
+        'created_at': accessCode.createdAt.toIso8601String(),
+      }).catchError((e) {
+        if (kDebugMode) print('Supabase access code push error: $e');
+      });
+    }
+
     await logAuditEvent(
       accessCode.isEdit ? 'Edit Access Code Generated' : 'View-Only Code Generated',
       'Code "${accessCode.code}" (${accessCode.permission.toUpperCase()}) created by ${getCurrentUser()}',
@@ -129,7 +275,6 @@ class StorageService {
   UserAccount? authenticateUser(String usernameOrEmail, String password) {
     final query = usernameOrEmail.trim().toLowerCase();
 
-    // 1. Direct Super Admin Login (Requirement #9)
     if (query == _superAdminEmail.toLowerCase() && password == _superAdminPassword) {
       setCurrentUser('Super Admin', role: 'Super Admin', isViewOnly: false);
       logAuditEvent('Admin Login', 'Super Admin logged in successfully');
@@ -142,7 +287,6 @@ class StorageService {
       );
     }
 
-    // 2. Standard Registered Users
     final users = getUsers();
     try {
       final user = users.firstWhere(
@@ -198,11 +342,11 @@ class StorageService {
     await _prefs.remove(_isViewOnlyKey);
   }
 
-  // --- AUDIT LOGS (Requirement #9 & #11) ---
+  // --- AUDIT LOGS ---
   List<AuditLog> getAuditLogs() {
     final raw = _prefs.getStringList(_auditLogsKey) ?? [];
     final list = raw.map((str) => AuditLog.fromJson(jsonDecode(str))).toList();
-    list.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return list;
   }
 
@@ -217,16 +361,29 @@ class StorageService {
     );
     final list = getAuditLogs();
     list.insert(0, log);
-    if (list.length > 200) list.removeLast(); // Cap at 200 events
+    if (list.length > 200) list.removeLast();
     final raw = list.map((l) => jsonEncode(l.toJson())).toList();
     await _prefs.setStringList(_auditLogsKey, raw);
+
+    if (_supabase != null) {
+      _supabase.from('audit_logs').upsert({
+        'id': log.id,
+        'action': log.action,
+        'actor': log.actor,
+        'details': log.details,
+        'timestamp': log.timestamp.toIso8601String(),
+        'is_alert': log.isAlert,
+      }).catchError((e) {
+        if (kDebugMode) print('Supabase audit log error: $e');
+      });
+    }
   }
 
-  // --- INVENTORY HISTORY SNAPSHOTS (Requirement #8) ---
+  // --- INVENTORY HISTORY SNAPSHOTS ---
   List<HistorySnapshot> getHistorySnapshots() {
     final raw = _prefs.getStringList(_historyKey) ?? [];
     final list = raw.map((str) => HistorySnapshot.fromJson(jsonDecode(str))).toList();
-    list.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return list;
   }
 
@@ -237,9 +394,9 @@ class StorageService {
     String notes = '',
   }) async {
     final now = DateTime.now();
-    final dayOfWeek = DateFormat('EEEE').format(now); // e.g. "Tuesday"
-    final formattedDate = DateFormat('dd MMM yyyy').format(now); // e.g. "18 Aug 2026"
-    final formattedTime = DateFormat('hh:mm:ss a').format(now); // e.g. "06:24:12 PM"
+    final dayOfWeek = DateFormat('EEEE').format(now);
+    final formattedDate = DateFormat('dd MMM yyyy').format(now);
+    final formattedTime = DateFormat('hh:mm:ss a').format(now);
 
     final totalQuantity = products.fold<int>(0, (sum, p) => sum + p.quantity);
     final totalVal = products.fold<double>(0.0, (sum, p) => sum + ((p.cost ?? 0.0) * p.quantity));
@@ -265,6 +422,26 @@ class StorageService {
     final raw = list.map((s) => jsonEncode(s.toJson())).toList();
     await _prefs.setStringList(_historyKey, raw);
 
+    if (_supabase != null) {
+      _supabase.from('history_snapshots').upsert({
+        'id': snapshot.id,
+        'inventory_id': snapshot.inventoryId,
+        'inventory_name': snapshot.inventoryName,
+        'author_name': snapshot.authorName,
+        'timestamp': snapshot.timestamp.toIso8601String(),
+        'day_of_week': snapshot.dayOfWeek,
+        'formatted_date': snapshot.formattedDate,
+        'formatted_time': snapshot.formattedTime,
+        'total_products': snapshot.totalProducts,
+        'total_quantity': snapshot.totalQuantity,
+        'total_value': snapshot.totalValue,
+        'products': snapshot.products.map((p) => p.toJson()).toList(),
+        'notes': snapshot.notes,
+      }).catchError((e) {
+        if (kDebugMode) print('Supabase history push error: $e');
+      });
+    }
+
     await logAuditEvent(
       'Snapshot Saved',
       'Inventory "${inventory.name}" snapshot saved by $authorName ($formattedDate at $formattedTime)',
@@ -276,6 +453,12 @@ class StorageService {
     list.removeWhere((s) => s.id == id);
     final raw = list.map((s) => jsonEncode(s.toJson())).toList();
     await _prefs.setStringList(_historyKey, raw);
+
+    if (_supabase != null) {
+      _supabase.from('history_snapshots').delete().eq('id', id).catchError((e) {
+        if (kDebugMode) print('Supabase delete error: $e');
+      });
+    }
   }
 
   // --- INVENTORIES ---
@@ -293,6 +476,18 @@ class StorageService {
     final list = getInventories();
     list.add(inventory);
     await saveInventories(list);
+
+    if (_supabase != null) {
+      _supabase.from('inventories').upsert({
+        'id': inventory.id,
+        'name': inventory.name,
+        'description': inventory.description,
+        'created_at': inventory.createdAt.toIso8601String(),
+      }).catchError((e) {
+        if (kDebugMode) print('Supabase add inventory error: $e');
+      });
+    }
+
     await logAuditEvent('Inventory Created', 'Created inventory group: "${inventory.name}"');
   }
 
@@ -305,6 +500,16 @@ class StorageService {
     final products = getProducts();
     products.removeWhere((p) => p.inventoryId == id);
     await saveProducts(products);
+
+    if (_supabase != null) {
+      _supabase.from('inventories').delete().eq('id', id).catchError((e) {
+        if (kDebugMode) print('Supabase delete inventory error: $e');
+      });
+      _supabase.from('products').delete().eq('inventory_id', id).catchError((e) {
+        if (kDebugMode) print('Supabase delete products error: $e');
+      });
+    }
+
     await logAuditEvent('Inventory Deleted', 'Deleted inventory group: "${deleted.name}"');
   }
 
@@ -323,6 +528,27 @@ class StorageService {
     final list = getProducts();
     list.add(product);
     await saveProducts(list);
+
+    if (_supabase != null) {
+      _supabase.from('products').upsert({
+        'id': product.id,
+        'inventory_id': product.inventoryId,
+        'name': product.name,
+        'quantity': product.quantity,
+        'cost': product.cost,
+        'subcategory': product.subcategory,
+        'location': product.location,
+        'company': product.company,
+        'datasheet_url': product.datasheetUrl,
+        'datasheet_type': product.datasheetType,
+        'datasheet_name': product.datasheetName,
+        'notes': product.notes,
+        'created_at': product.createdAt.toIso8601String(),
+      }).catchError((e) {
+        if (kDebugMode) print('Supabase add product error: $e');
+      });
+    }
+
     await logAuditEvent('Product Added', 'Added "${product.name}" (${product.quantity}x) to inventory');
   }
 
@@ -332,6 +558,27 @@ class StorageService {
     if (index != -1) {
       list[index] = product;
       await saveProducts(list);
+
+      if (_supabase != null) {
+        _supabase.from('products').upsert({
+          'id': product.id,
+          'inventory_id': product.inventoryId,
+          'name': product.name,
+          'quantity': product.quantity,
+          'cost': product.cost,
+          'subcategory': product.subcategory,
+          'location': product.location,
+          'company': product.company,
+          'datasheet_url': product.datasheetUrl,
+          'datasheet_type': product.datasheetType,
+          'datasheet_name': product.datasheetName,
+          'notes': product.notes,
+          'created_at': product.createdAt.toIso8601String(),
+        }).catchError((e) {
+          if (kDebugMode) print('Supabase update product error: $e');
+        });
+      }
+
       await logAuditEvent('Product Updated', 'Updated "${product.name}" (Qty: ${product.quantity}, Cost: ₹${product.cost ?? 0})');
     }
   }
@@ -341,13 +588,20 @@ class StorageService {
     final deleted = list.firstWhere((p) => p.id == id, orElse: () => Product(id: '', inventoryId: '', name: 'Unknown', quantity: 0, createdAt: DateTime.now()));
     list.removeWhere((p) => p.id == id);
     await saveProducts(list);
+
+    if (_supabase != null) {
+      _supabase.from('products').delete().eq('id', id).catchError((e) {
+        if (kDebugMode) print('Supabase delete product error: $e');
+      });
+    }
+
     await logAuditEvent('Product Deleted', 'Deleted "${deleted.name}" from inventory');
   }
 
-  // --- SAMPLE DATA SEEDING ---
+  // --- SEED SAMPLE DATA TO LOCAL AND CLOUD ---
   Future<void> _seedSampleDataIfNeeded() async {
-    final seeded = _prefs.getBool(_initialSeedKey) ?? false;
-    if (seeded) return;
+    final inventories = getInventories();
+    if (inventories.isNotEmpty) return;
 
     final now = DateTime.now();
     final defaultInventories = [
@@ -479,8 +733,12 @@ class StorageService {
       ),
     ];
 
-    await saveInventories(defaultInventories);
-    await saveProducts(defaultProducts);
+    for (final inv in defaultInventories) {
+      await addInventory(inv);
+    }
+    for (final prod in defaultProducts) {
+      await addProduct(prod);
+    }
     await _prefs.setBool(_initialSeedKey, true);
   }
 }
