@@ -475,20 +475,25 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  // TAB 2: Security & Passcode
+  // TAB 2: Security & Inventory Management
   Widget _buildSecuritySettingsTab() {
+    final inventories = widget.storageService.getInventories();
+    final allProducts = widget.storageService.getProducts();
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section 1: Master Passcode
           const Text('Master Passcode & Security', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
           const SizedBox(height: 4),
           Text(
             'Update the primary shared lab passcode for the robotics club.',
             style: TextStyle(color: Colors.grey[400], fontSize: 11),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: () {
               showDialog(
@@ -505,6 +510,100 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),
+
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 10),
+
+          // Section 2: Manage Inventory Collections (Delete / Inspect)
+          Row(
+            children: const [
+              Icon(Icons.inventory_2_rounded, color: Colors.cyanAccent, size: 18),
+              SizedBox(width: 6),
+              Text('Inventory Groups Management', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Manage and delete inventory repositories and their associated components.',
+            style: TextStyle(color: Colors.grey[400], fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+
+          if (inventories.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(8)),
+              child: const Text('No inventory collections created yet.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            )
+          else
+            ...inventories.map((inv) {
+              final count = allProducts.where((p) => p.inventoryId == inv.id).length;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.cyan.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            inv.name,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$count items • ${inv.description.isNotEmpty ? inv.description : "No description"}',
+                            style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!isViewOnly)
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        tooltip: 'Delete "${inv.name}"',
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1E293B),
+                              title: const Text('Delete Inventory Group?', style: TextStyle(color: Colors.white, fontSize: 16)),
+                              content: Text(
+                                'Are you sure you want to delete "${inv.name}" and all its $count components?',
+                                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('CANCEL', style: TextStyle(color: Colors.grey))),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                  child: const Text('DELETE'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirm == true) {
+                            await widget.storageService.deleteInventory(inv.id);
+                            _loadData();
+                          }
+                        },
+                      ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );

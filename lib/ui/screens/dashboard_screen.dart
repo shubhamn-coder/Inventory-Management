@@ -137,6 +137,172 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _deleteInventory(String id, String name) async {
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+    if (isViewOnly) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 22),
+            SizedBox(width: 8),
+            Text('Delete Inventory?', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete inventory group "$name"?\n\nAll components stored inside this inventory will also be permanently deleted.',
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('DELETE INVENTORY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await widget.storageService.deleteInventory(id);
+      if (widget.selectedInventoryId == id) {
+        widget.onInventoryChanged(null);
+      }
+      widget.onDataChanged();
+      setState(() {});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Inventory "$name" deleted successfully.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showManageInventoriesModal() {
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final currentInventories = widget.storageService.getInventories();
+          final allProducts = widget.storageService.getProducts();
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: Colors.cyan.withValues(alpha: 0.3)),
+            ),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.inventory_2_rounded, color: Colors.cyanAccent, size: 20),
+                    SizedBox(width: 8),
+                    Text('Manage Inventories', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                if (!isViewOnly)
+                  IconButton(
+                    icon: const Icon(Icons.add_box_rounded, color: Colors.cyanAccent, size: 22),
+                    tooltip: 'Create New Inventory',
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _openCreateInventoryDialog();
+                    },
+                  ),
+              ],
+            ),
+            content: SizedBox(
+              width: 420,
+              height: 320,
+              child: currentInventories.isEmpty
+                  ? const Center(child: Text('No inventories found.', style: TextStyle(color: Colors.grey)))
+                  : ListView.builder(
+                      itemCount: currentInventories.length,
+                      itemBuilder: (ctx, index) {
+                        final inv = currentInventories[index];
+                        final count = allProducts.where((p) => p.inventoryId == inv.id).length;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white10),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      inv.name,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$count components • ${inv.description.isNotEmpty ? inv.description : "No description"}',
+                                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!isViewOnly)
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                  tooltip: 'Delete "${inv.name}"',
+                                  onPressed: () async {
+                                    Navigator.of(ctx).pop();
+                                    _deleteInventory(inv.id, inv.name);
+                                  },
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('CLOSE', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredProducts;
@@ -153,6 +319,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .cast<String>()
         .toSet()
         .toList();
+
+    final selectedInv = widget.selectedInventoryId != null
+        ? _inventories.firstWhere((i) => i.id == widget.selectedInventoryId, orElse: () => Inventory(id: '', name: '', createdAt: DateTime.now()))
+        : null;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -176,7 +346,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Row: Inventory Selector & + Inventory Button
+                  // Top Row: Inventory Selector, Delete Active Inventory, & + Inventory Button
                   Row(
                     children: [
                       Expanded(
@@ -212,12 +382,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ),
+                      // Delete specific selected inventory button
+                      if (!isViewOnly && selectedInv != null && selectedInv.id.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => _deleteInventory(selectedInv.id, selectedInv.name),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                            ),
+                            child: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                          ),
+                        ),
+                      ],
                       if (!isViewOnly) ...[
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: _showManageInventoriesModal,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.cyan.withValues(alpha: 0.3)),
+                            ),
+                            child: const Icon(Icons.settings_suggest_rounded, color: Colors.cyanAccent, size: 18),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         ElevatedButton.icon(
                           onPressed: _openCreateInventoryDialog,
-                          icon: const Icon(Icons.create_new_folder_rounded, size: 14),
-                          label: const Text('+ INVENTORY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          icon: const Icon(Icons.add, size: 14),
+                          label: const Text('NEW', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.cyan.withValues(alpha: 0.2),
                             foregroundColor: Colors.cyanAccent,
