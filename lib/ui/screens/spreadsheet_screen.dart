@@ -556,7 +556,7 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                         ),
                       ),
 
-                      // Full Edit Modal & Delete
+                      // Full Edit Modal (visible) + Delete (hidden in 3-dot menu)
                       if (!isViewOnly)
                         Row(
                           children: [
@@ -565,9 +565,25 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                               icon: const Icon(Icons.edit_note, size: 15, color: Colors.cyanAccent),
                               label: const Text('FULL EDIT', style: TextStyle(color: Colors.cyanAccent, fontSize: 11)),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 17),
-                              onPressed: () => _deleteProduct(product),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert, size: 17, color: Colors.grey),
+                              color: const Color(0xFF1E293B),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              onSelected: (val) {
+                                if (val == 'delete') _deleteProduct(product);
+                              },
+                              itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                                      SizedBox(width: 8),
+                                      Text('Delete', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),

@@ -757,7 +757,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const Spacer(),
 
-              // Edit & Delete Buttons
+              // Edit (visible) + Delete (hidden in 3-dot menu)
               if (!isViewOnly) ...[
                 InkWell(
                   onTap: () => _openAddProductDialog(product),
@@ -766,12 +766,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Icon(Icons.edit_outlined, size: 15, color: Colors.cyanAccent),
                   ),
                 ),
-                InkWell(
-                  onTap: () => _deleteProduct(product),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4.0),
-                    child: Icon(Icons.delete_outline, size: 15, color: Colors.redAccent),
-                  ),
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert, size: 15, color: Colors.grey),
+                  color: const Color(0xFF1E293B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  onSelected: (val) {
+                    if (val == 'delete') _deleteProduct(product);
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
