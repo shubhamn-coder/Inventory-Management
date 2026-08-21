@@ -68,6 +68,7 @@ class StorageService {
           name: r['name'] as String,
           description: (r['description'] as String?) ?? '',
           createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+          parentInventoryId: r['parent_inventory_id'] as String?,
         )).toList();
         final raw = inventories.map((i) => jsonEncode(i.toJson())).toList();
         await _prefs.setStringList(_inventoriesKey, raw);
@@ -90,6 +91,9 @@ class StorageService {
           datasheetName: r['datasheet_name'] as String?,
           notes: r['notes'] as String?,
           createdAt: DateTime.tryParse(r['created_at']?.toString() ?? '') ?? DateTime.now(),
+          inUse: (r['in_use'] as num?)?.toInt() ?? 0,
+          customQty: (r['custom_qty'] as num?)?.toInt() ?? 0,
+          customLabel: r['custom_label'] as String?,
         )).toList();
         final raw = products.map((p) => jsonEncode(p.toJson())).toList();
         await _prefs.setStringList(_productsKey, raw);
@@ -499,6 +503,7 @@ class StorageService {
         'id': inventory.id,
         'name': inventory.name,
         'description': inventory.description,
+        'parent_inventory_id': inventory.parentInventoryId,
         'created_at': inventory.createdAt.toIso8601String(),
       }).catchError((e) {
         if (kDebugMode) print('Supabase add inventory error: $e');
@@ -508,10 +513,46 @@ class StorageService {
     await logAuditEvent('Inventory Created', 'Created inventory group: "${inventory.name}"');
   }
 
+  Future<void> updateInventory(Inventory inventory) async {
+    final list = getInventories();
+    final index = list.indexWhere((i) => i.id == inventory.id);
+    if (index != -1) {
+      list[index] = inventory;
+      await saveInventories(list);
+
+      if (_supabase != null) {
+        _supabase.from('inventories').upsert({
+          'id': inventory.id,
+          'name': inventory.name,
+          'description': inventory.description,
+          'parent_inventory_id': inventory.parentInventoryId,
+          'created_at': inventory.createdAt.toIso8601String(),
+        }).catchError((e) {
+          if (kDebugMode) print('Supabase update inventory error: $e');
+        });
+      }
+
+      await logAuditEvent('Inventory Updated', 'Updated inventory group: "${inventory.name}"');
+    }
+  }
+
   Future<void> deleteInventory(String id) async {
     final list = getInventories();
     final deleted = list.firstWhere((i) => i.id == id, orElse: () => Inventory(id: '', name: 'Unknown', createdAt: DateTime.now()));
     list.removeWhere((i) => i.id == id);
+    
+    // Also re-parent any sub-inventories of this inventory to standalone
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].parentInventoryId == id) {
+        list[i] = Inventory(
+          id: list[i].id,
+          name: list[i].name,
+          description: list[i].description,
+          createdAt: list[i].createdAt,
+          parentInventoryId: null,
+        );
+      }
+    }
     await saveInventories(list);
 
     final products = getProducts();
@@ -528,6 +569,107 @@ class StorageService {
     }
 
     await logAuditEvent('Inventory Deleted', 'Deleted inventory group: "${deleted.name}"');
+  }
+
+  /// Merge source inventory into target inventory (moves all components, deletes source)
+  Future<void> mergeInventories(String sourceId, String targetId) async {
+    final inventories = getInventories();
+    final source = inventories.firstWhere((i) => i.id == sourceId, orElse: () => Inventory(id: '', name: 'Unknown', createdAt: DateTime.now()));
+    final target = inventories.firstWhere((i) => i.id == targetId, orElse: () => Inventory(id: '', name: 'Unknown', createdAt: DateTime.now()));
+
+    if (source.id.isEmpty || target.id.isEmpty || source.id == target.id) return;
+
+    // 1. Move all products belonging to source inventory into target
+    final allProducts = getProducts();
+    final updatedProducts = allProducts.map((p) {
+      if (p.inventoryId == sourceId) {
+        return p.copyWith(inventoryId: targetId);
+      }
+      return p;
+    }).toList();
+    await saveProducts(updatedProducts);
+
+    // 2. Reparent any child sub-inventories of source to target
+    for (int i = 0; i < inventories.length; i++) {
+      if (inventories[i].parentInventoryId == sourceId) {
+        inventories[i] = Inventory(
+          id: inventories[i].id,
+          name: inventories[i].name,
+          description: inventories[i].description,
+          createdAt: inventories[i].createdAt,
+          parentInventoryId: targetId,
+        );
+      }
+    }
+
+    // 3. Remove source inventory
+    inventories.removeWhere((i) => i.id == sourceId);
+    await saveInventories(inventories);
+
+    // 4. Supabase sync if connected
+    if (_supabase != null) {
+      _supabase.from('products').update({'inventory_id': targetId}).eq('inventory_id', sourceId).catchError((e) {
+        if (kDebugMode) print('Supabase merge products error: $e');
+      });
+      _supabase.from('inventories').delete().eq('id', sourceId).catchError((e) {
+        if (kDebugMode) print('Supabase delete source inventory error: $e');
+      });
+    }
+
+    await logAuditEvent(
+      'Inventories Merged',
+      'Merged "${source.name}" into "${target.name}"',
+      isAlert: true,
+    );
+  }
+
+  /// Split selected products from source inventory into a newly created inventory
+  Future<Inventory> splitInventory({
+    required String sourceInventoryId,
+    required List<String> productIdsToMove,
+    required String newInventoryName,
+    String? newInventoryDescription,
+    String? parentInventoryId,
+  }) async {
+    final inventories = getInventories();
+    final source = inventories.firstWhere((i) => i.id == sourceInventoryId, orElse: () => Inventory(id: '', name: 'Unknown', createdAt: DateTime.now()));
+
+    final newInv = Inventory(
+      id: 'inv_${DateTime.now().millisecondsSinceEpoch}',
+      name: newInventoryName.trim(),
+      description: newInventoryDescription ?? '',
+      createdAt: DateTime.now(),
+      parentInventoryId: parentInventoryId,
+    );
+
+    // 1. Add new inventory
+    await addInventory(newInv);
+
+    // 2. Move selected products
+    final allProducts = getProducts();
+    final updatedProducts = allProducts.map((p) {
+      if (productIdsToMove.contains(p.id)) {
+        return p.copyWith(inventoryId: newInv.id);
+      }
+      return p;
+    }).toList();
+    await saveProducts(updatedProducts);
+
+    // 3. Supabase sync
+    if (_supabase != null) {
+      for (final pid in productIdsToMove) {
+        _supabase.from('products').update({'inventory_id': newInv.id}).eq('id', pid).catchError((e) {
+          if (kDebugMode) print('Supabase split update product error: $e');
+        });
+      }
+    }
+
+    await logAuditEvent(
+      'Inventory Split',
+      'Split ${productIdsToMove.length} items from "${source.name}" into new inventory "${newInv.name}"',
+    );
+
+    return newInv;
   }
 
   // --- PRODUCTS ---
@@ -560,6 +702,9 @@ class StorageService {
         'datasheet_type': product.datasheetType,
         'datasheet_name': product.datasheetName,
         'notes': product.notes,
+        'in_use': product.inUse,
+        'custom_qty': product.customQty,
+        'custom_label': product.customLabel,
         'created_at': product.createdAt.toIso8601String(),
       }).catchError((e) {
         if (kDebugMode) print('Supabase add product error: $e');
@@ -590,6 +735,9 @@ class StorageService {
           'datasheet_type': product.datasheetType,
           'datasheet_name': product.datasheetName,
           'notes': product.notes,
+          'in_use': product.inUse,
+          'custom_qty': product.customQty,
+          'custom_label': product.customLabel,
           'created_at': product.createdAt.toIso8601String(),
         }).catchError((e) {
           if (kDebugMode) print('Supabase update product error: $e');

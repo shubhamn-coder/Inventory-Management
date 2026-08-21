@@ -1,17 +1,32 @@
 class Product {
   final String id;
   final String inventoryId;
-  final String name; // Compulsory
-  final int quantity; // Compulsory
-  final double? cost; // Optional
-  final String? subcategory; // Optional
-  final String? location; // Optional
-  final String? company; // Optional
-  final String? datasheetUrl; // Optional
-  final String? datasheetType; // 'link' or 'file'
-  final String? datasheetName; // Display name
-  final String? notes; // Optional
+  final String name;
+  final int quantity;
+  final double? cost;
+  final String? subcategory;
+  final String? location;
+  final String? company;
+  final String? datasheetUrl;
+  final String? datasheetType;
+  final String? datasheetName;
+  final String? notes;
   final DateTime createdAt;
+
+  /// How many are currently deployed / in use
+  final int inUse;
+
+  /// How many are at a custom location (e.g. "Robot1")
+  final int customQty;
+
+  /// Label for the custom deployment (e.g. "Robot1", "Test Bench")
+  final String? customLabel;
+
+  /// Quantity physically available in storage (auto-computed, clamped >= 0)
+  int get inStock => (quantity - inUse - customQty).clamp(0, quantity);
+
+  /// True when any status breakdown has been set
+  bool get hasStatusBreakdown => inUse > 0 || customQty > 0;
 
   Product({
     required this.id,
@@ -27,6 +42,9 @@ class Product {
     this.datasheetName,
     this.notes,
     required this.createdAt,
+    this.inUse = 0,
+    this.customQty = 0,
+    this.customLabel,
   });
 
   Map<String, dynamic> toJson() => {
@@ -43,6 +61,9 @@ class Product {
         'datasheetName': datasheetName,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
+        'inUse': inUse,
+        'customQty': customQty,
+        'customLabel': customLabel,
       };
 
   factory Product.fromJson(Map<String, dynamic> json) => Product(
@@ -59,6 +80,9 @@ class Product {
         datasheetName: json['datasheetName'] as String?,
         notes: json['notes'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        inUse: (json['inUse'] as num?)?.toInt() ?? 0,
+        customQty: (json['customQty'] as num?)?.toInt() ?? 0,
+        customLabel: json['customLabel'] as String?,
       );
 
   Product copyWith({
@@ -67,6 +91,7 @@ class Product {
     String? name,
     int? quantity,
     double? cost,
+    bool clearCost = false,
     String? subcategory,
     String? location,
     String? company,
@@ -75,13 +100,17 @@ class Product {
     String? datasheetName,
     String? notes,
     DateTime? createdAt,
+    int? inUse,
+    int? customQty,
+    String? customLabel,
+    bool clearCustomLabel = false,
   }) {
     return Product(
       id: id ?? this.id,
       inventoryId: inventoryId ?? this.inventoryId,
       name: name ?? this.name,
       quantity: quantity ?? this.quantity,
-      cost: cost ?? this.cost,
+      cost: clearCost ? null : (cost ?? this.cost),
       subcategory: subcategory ?? this.subcategory,
       location: location ?? this.location,
       company: company ?? this.company,
@@ -90,6 +119,10 @@ class Product {
       datasheetName: datasheetName ?? this.datasheetName,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
+      inUse: inUse ?? this.inUse,
+      customQty: customQty ?? this.customQty,
+      customLabel: clearCustomLabel ? null : (customLabel ?? this.customLabel),
     );
   }
 }
+

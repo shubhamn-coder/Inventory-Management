@@ -360,7 +360,7 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                 ),
                 const SizedBox(width: 6),
 
-                // 2. QUANTITY (Direct Stepper in Edit Mode)
+                // 2. QUANTITY (Direct Numeric Typing + Steppers in Edit Mode)
                 Expanded(
                   flex: 3,
                   child: _isEditMode && !isViewOnly
@@ -368,32 +368,51 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             InkWell(
-                              onTap: () => _updateProductQuantity(product, product.quantity - 1),
+                              onTap: () => _updateProductQuantity(product, (product.quantity - 1).clamp(0, 999999)),
                               child: Container(
-                                padding: const EdgeInsets.all(3),
+                                padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF1E293B),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Icon(Icons.remove, size: 14, color: Colors.cyanAccent),
+                                child: const Icon(Icons.remove, size: 13, color: Colors.cyanAccent),
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: Text(
-                                '${product.quantity}',
+                            const SizedBox(width: 2),
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: '${product.quantity}',
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(color: Colors.amberAccent),
+                                  ),
+                                ),
+                                onFieldSubmitted: (val) {
+                                  final parsed = int.tryParse(val.trim());
+                                  if (parsed != null && parsed >= 0) {
+                                    _updateProductQuantity(product, parsed);
+                                  }
+                                },
                               ),
                             ),
+                            const SizedBox(width: 2),
                             InkWell(
                               onTap: () => _updateProductQuantity(product, product.quantity + 1),
                               child: Container(
-                                padding: const EdgeInsets.all(3),
+                                padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF1E293B),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: const Icon(Icons.add, size: 14, color: Colors.cyanAccent),
+                                child: const Icon(Icons.add, size: 13, color: Colors.cyanAccent),
                               ),
                             ),
                           ],
@@ -488,12 +507,46 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  // Status Breakdown Tags
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: Text('✅ ${product.inStock} In Stock', style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      if (product.inUse > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+                          ),
+                          child: Text('🔧 ${product.inUse} In Use', style: const TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      if (product.customQty > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            '📍 ${product.customQty} ${product.customLabel ?? "Custom"}',
+                            style: const TextStyle(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       if (product.subcategory != null)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          margin: const EdgeInsets.only(right: 6),
                           decoration: BoxDecoration(
                             color: const Color(0xFF0F172A),
                             borderRadius: BorderRadius.circular(4),
@@ -503,7 +556,6 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                       if (product.company != null)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          margin: const EdgeInsets.only(right: 6),
                           decoration: BoxDecoration(
                             color: Colors.purple.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),

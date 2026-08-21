@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/services/csv_service.dart';
 import '../../data/services/storage_service.dart';
 import '../../domain/models/history_snapshot.dart';
 
@@ -29,6 +30,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() {
       _snapshots = widget.storageService.getHistorySnapshots();
     });
+  }
+
+  void _downloadSnapshotCsv(HistorySnapshot snap) {
+    final csvContent = CsvService.generateSnapshotCsv(snap);
+    final safeInvName = snap.inventoryName.replaceAll(RegExp(r'[^\w\s]+'), '').replaceAll(' ', '_');
+    final fileName = 'Snapshot_${safeInvName}_${snap.timestamp.millisecondsSinceEpoch}.csv';
+    CsvService.downloadOrSaveCsv(csvContent: csvContent, fileName: fileName);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Snapshot CSV downloaded: $fileName'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _showSaveSnapshotDialog() {
@@ -302,6 +317,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ),
         actions: [
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _downloadSnapshotCsv(snapshot);
+            },
+            icon: const Icon(Icons.download_rounded, size: 16),
+            label: const Text('DOWNLOAD CSV'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent,
+              foregroundColor: Colors.black,
+            ),
+          ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
@@ -445,15 +472,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                   Row(
                                     children: [
+                                      IconButton(
+                                        tooltip: 'Download Spreadsheet CSV',
+                                        icon: const Icon(Icons.download_rounded, size: 18, color: Colors.cyanAccent),
+                                        onPressed: () => _downloadSnapshotCsv(snap),
+                                      ),
                                       TextButton.icon(
                                         onPressed: () => _viewSnapshotDetails(snap),
                                         icon: const Icon(Icons.visibility_rounded, size: 16, color: Colors.cyanAccent),
-                                        label: const Text('VIEW ITEMS', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
+                                        label: const Text('VIEW', style: TextStyle(color: Colors.cyanAccent, fontSize: 12)),
                                       ),
                                       if (!isViewOnly)
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                                          onPressed: () => _deleteSnapshot(snap.id),
+                                        PopupMenuButton<String>(
+                                          icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                                          color: const Color(0xFF1E293B),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          onSelected: (val) {
+                                            if (val == 'delete') _deleteSnapshot(snap.id);
+                                          },
+                                          itemBuilder: (_) => [
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                                                  SizedBox(width: 8),
+                                                  Text('Delete Snapshot', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                     ],
                                   ),

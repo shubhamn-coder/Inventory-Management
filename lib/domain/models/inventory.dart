@@ -4,11 +4,18 @@ class Inventory {
   final String description;
   final DateTime createdAt;
 
+  /// If set, this inventory is a sub-inventory of the given parent ID
+  final String? parentInventoryId;
+
+  bool get isSubInventory =>
+      parentInventoryId != null && parentInventoryId!.isNotEmpty;
+
   Inventory({
     required this.id,
     required this.name,
     this.description = '',
     required this.createdAt,
+    this.parentInventoryId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -16,6 +23,7 @@ class Inventory {
         'name': name,
         'description': description,
         'createdAt': createdAt.toIso8601String(),
+        'parentInventoryId': parentInventoryId,
       };
 
   factory Inventory.fromJson(Map<String, dynamic> json) => Inventory(
@@ -23,5 +31,6 @@ class Inventory {
         name: json['name'] as String,
         description: (json['description'] as String?) ?? '',
         createdAt: DateTime.parse(json['createdAt'] as String),
+        parentInventoryId: json['parentInventoryId'] as String?,
       );
 }
