@@ -108,6 +108,252 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
     }
   }
 
+  void _openQuickStatusDialog(Product product) {
+    final isViewOnly = widget.storageService.isViewOnlyMode();
+    if (isViewOnly) return;
+
+    final inUseController = TextEditingController(text: product.inUse.toString());
+    final customQtyController = TextEditingController(text: product.customQty.toString());
+    final customLabelController = TextEditingController(text: product.customLabel ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final inUse = int.tryParse(inUseController.text.trim()) ?? 0;
+          final customQty = int.tryParse(customQtyController.text.trim()) ?? 0;
+          final inStock = (product.quantity - inUse - customQty).clamp(0, product.quantity);
+
+          void setInUseValue(int newVal) {
+            final clamped = newVal.clamp(0, product.quantity);
+            inUseController.text = clamped.toString();
+            setDialogState(() {});
+          }
+
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.amber.withValues(alpha: 0.5), width: 1.5),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.build_circle_rounded, color: Colors.amberAccent, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Categorize / Deploy: ${product.name}',
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Live Breakdown Summary Strip
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            Text('${product.quantity}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('Total Owned', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          ],
+                        ),
+                        Container(width: 1, height: 24, color: Colors.white10),
+                        Column(
+                          children: [
+                            Text('$inStock', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('In Stock', style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                          ],
+                        ),
+                        Container(width: 1, height: 24, color: Colors.white10),
+                        Column(
+                          children: [
+                            Text('$inUse', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('In Use', style: TextStyle(color: Colors.amberAccent, fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // In-Use Field with Quick Steppers (+1 USE / -1 USE)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: inUseController,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setDialogState(() {}),
+                          style: const TextStyle(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            labelText: 'Quantity In Use / Deployed',
+                            labelStyle: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+                            prefixIcon: const Icon(Icons.build_circle_outlined, color: Colors.amberAccent, size: 18),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Quick +1 Stepper
+                      ElevatedButton(
+                        onPressed: inStock > 0 ? () => setInUseValue(inUse + 1) : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amberAccent,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('+1 USE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 4),
+                      // Quick -1 Stepper
+                      OutlinedButton(
+                        onPressed: inUse > 0 ? () => setInUseValue(inUse - 1) : null,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.amberAccent,
+                          side: const BorderSide(color: Colors.amberAccent),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('-1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Custom Tag & Location Section
+                  const Text(
+                    'Custom Tag / Location (e.g. Robot 1, Project A)',
+                    style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 4,
+                        child: TextField(
+                          controller: customQtyController,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setDialogState(() {}),
+                          style: const TextStyle(color: Colors.purpleAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            labelText: 'Custom Qty',
+                            labelStyle: const TextStyle(color: Colors.purpleAccent, fontSize: 11),
+                            prefixIcon: const Icon(Icons.label_outline, color: Colors.purpleAccent, size: 15),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 6,
+                        child: TextField(
+                          controller: customLabelController,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            labelText: 'Tag (e.g. Robot1)',
+                            labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Quick Tag Presets Chips
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: ['Robot 1', 'Robot 2', 'Test Rig', 'Project Alpha'].map((preset) {
+                      return ActionChip(
+                        label: Text(preset, style: const TextStyle(fontSize: 10, color: Colors.purpleAccent)),
+                        backgroundColor: Colors.purple.withValues(alpha: 0.15),
+                        side: BorderSide(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          customLabelController.text = preset;
+                          if (customQty == 0) {
+                            customQtyController.text = '1';
+                          }
+                          setDialogState(() {});
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final newInUse = int.tryParse(inUseController.text.trim()) ?? 0;
+                  final newCustomQty = int.tryParse(customQtyController.text.trim()) ?? 0;
+                  final newCustomLabel = customLabelController.text.trim();
+
+                  final updated = product.copyWith(
+                    inUse: newInUse,
+                    customQty: newCustomQty,
+                    customLabel: newCustomLabel.isNotEmpty ? newCustomLabel : null,
+                    clearCustomLabel: newCustomLabel.isEmpty,
+                  );
+
+                  await widget.storageService.updateProduct(updated);
+                  Navigator.of(ctx).pop();
+                  widget.onDataChanged();
+                  setState(() {});
+                },
+                icon: const Icon(Icons.check_circle_rounded, size: 16),
+                label: const Text('SAVE CATEGORIZATION'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amberAccent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _openFullEditModal(Product product) {
     showDialog(
       context: context,
@@ -608,10 +854,22 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                         ),
                       ),
 
-                      // Full Edit Modal (visible) + Delete (hidden in 3-dot menu)
+                      // Prominent USE Button & Full Edit Modal
                       if (!isViewOnly)
                         Row(
                           children: [
+                            ElevatedButton.icon(
+                              onPressed: () => _openQuickStatusDialog(product),
+                              icon: const Icon(Icons.build_circle_rounded, size: 13),
+                              label: const Text('USE ITEM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.amberAccent,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             TextButton.icon(
                               onPressed: () => _openFullEditModal(product),
                               icon: const Icon(Icons.edit_note, size: 15, color: Colors.cyanAccent),
@@ -622,9 +880,23 @@ class _SpreadsheetScreenState extends State<SpreadsheetScreen> {
                               color: const Color(0xFF1E293B),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               onSelected: (val) {
-                                if (val == 'delete') _deleteProduct(product);
+                                if (val == 'status') {
+                                  _openQuickStatusDialog(product);
+                                } else if (val == 'delete') {
+                                  _deleteProduct(product);
+                                }
                               },
                               itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                  value: 'status',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.build_circle_rounded, color: Colors.amberAccent, size: 16),
+                                      SizedBox(width: 8),
+                                      Text('Categorize / Use Item', style: TextStyle(color: Colors.white, fontSize: 13)),
+                                    ],
+                                  ),
+                                ),
                                 const PopupMenuItem(
                                   value: 'delete',
                                   child: Row(

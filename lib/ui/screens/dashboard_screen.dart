@@ -106,19 +106,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final customQty = int.tryParse(customQtyController.text.trim()) ?? 0;
           final inStock = (product.quantity - inUse - customQty).clamp(0, product.quantity);
 
+          void setInUseValue(int newVal) {
+            final clamped = newVal.clamp(0, product.quantity);
+            inUseController.text = clamped.toString();
+            setDialogState(() {});
+          }
+
           return AlertDialog(
             backgroundColor: const Color(0xFF1E293B),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.cyan.withValues(alpha: 0.3)),
+              side: BorderSide(color: Colors.amber.withValues(alpha: 0.5), width: 1.5),
             ),
             title: Row(
               children: [
-                const Icon(Icons.tune_rounded, color: Colors.cyanAccent, size: 20),
+                const Icon(Icons.build_circle_rounded, color: Colors.amberAccent, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Status & Tags: ${product.name}',
+                    'Categorize / Deploy: ${product.name}',
                     style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -126,49 +132,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             content: SizedBox(
-              width: 380,
+              width: 400,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Live Breakdown Summary Strip
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     decoration: BoxDecoration(
                       color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        Text('Total: ${product.quantity}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text('In Stock: $inStock', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                        Text('In Use: $inUse', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                        Column(
+                          children: [
+                            Text('${product.quantity}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('Total Owned', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                          ],
+                        ),
+                        Container(width: 1, height: 24, color: Colors.white10),
+                        Column(
+                          children: [
+                            Text('$inStock', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('In Stock', style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                          ],
+                        ),
+                        Container(width: 1, height: 24, color: Colors.white10),
+                        Column(
+                          children: [
+                            Text('$inUse', style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            const Text('In Use', style: TextStyle(color: Colors.amberAccent, fontSize: 10)),
+                          ],
+                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // In-Use Field with Quick Steppers (+1 USE / -1 USE)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: inUseController,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setDialogState(() {}),
+                          style: const TextStyle(color: Colors.amberAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            labelText: 'Quantity In Use / Deployed',
+                            labelStyle: const TextStyle(color: Colors.amberAccent, fontSize: 12),
+                            prefixIcon: const Icon(Icons.build_circle_outlined, color: Colors.amberAccent, size: 18),
+                            filled: true,
+                            fillColor: const Color(0xFF0F172A),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // Quick +1 Stepper
+                      ElevatedButton(
+                        onPressed: inStock > 0 ? () => setInUseValue(inUse + 1) : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amberAccent,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('+1 USE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 4),
+                      // Quick -1 Stepper
+                      OutlinedButton(
+                        onPressed: inUse > 0 ? () => setInUseValue(inUse - 1) : null,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.amberAccent,
+                          side: const BorderSide(color: Colors.amberAccent),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('-1', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
 
-                  // In-Use Field
-                  TextField(
-                    controller: inUseController,
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setDialogState(() {}),
-                    style: const TextStyle(color: Colors.amberAccent, fontSize: 13, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      labelText: 'Quantity In Use / Deployed',
-                      labelStyle: const TextStyle(color: Colors.amberAccent, fontSize: 12),
-                      prefixIcon: const Icon(Icons.build_circle_outlined, color: Colors.amberAccent, size: 16),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
+                  // Custom Tag & Location Section
+                  const Text(
+                    'Custom Tag / Location (e.g. Robot 1, Project A)',
+                    style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 12),
-
-                  // Custom Qty & Tag Label Row
+                  const SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
@@ -197,7 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           controller: customLabelController,
                           style: const TextStyle(color: Colors.white, fontSize: 13),
                           decoration: InputDecoration(
-                            labelText: 'Custom Tag (e.g. Robot1)',
+                            labelText: 'Tag (e.g. Robot1)',
                             labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
                             filled: true,
                             fillColor: const Color(0xFF0F172A),
@@ -209,6 +272,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+
+                  // Quick Tag Presets Chips
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: ['Robot 1', 'Robot 2', 'Test Rig', 'Project Alpha'].map((preset) {
+                      return ActionChip(
+                        label: Text(preset, style: const TextStyle(fontSize: 10, color: Colors.purpleAccent)),
+                        backgroundColor: Colors.purple.withValues(alpha: 0.15),
+                        side: BorderSide(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          customLabelController.text = preset;
+                          if (customQty == 0) {
+                            customQtyController.text = '1';
+                          }
+                          setDialogState(() {});
+                        },
+                      );
+                    }).toList(),
+                  ),
                 ],
               ),
             ),
@@ -217,7 +303,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: () => Navigator.of(ctx).pop(),
                 child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () async {
                   final newInUse = int.tryParse(inUseController.text.trim()) ?? 0;
                   final newCustomQty = int.tryParse(customQtyController.text.trim()) ?? 0;
@@ -235,11 +321,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   widget.onDataChanged();
                   setState(() {});
                 },
+                icon: const Icon(Icons.check_circle_rounded, size: 16),
+                label: const Text('SAVE CATEGORIZATION'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.cyanAccent,
+                  backgroundColor: Colors.amberAccent,
                   foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 ),
-                child: const Text('UPDATE STATUS'),
               ),
             ],
           );
@@ -1102,50 +1190,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 4),
 
-          // Status breakdown visible directly under item name
-          Wrap(
-            spacing: 3,
-            runSpacing: 2,
-            children: [
-              // In Stock badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '✓ ${product.inStock} stock',
-                  style: const TextStyle(color: Colors.greenAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
-                ),
-              ),
-              // In Use badge (if any)
-              if (product.inUse > 0)
+          // Tappable Status breakdown visible directly under item name
+          InkWell(
+            onTap: () => _openQuickStatusDialog(product),
+            borderRadius: BorderRadius.circular(4),
+            child: Wrap(
+              spacing: 3,
+              runSpacing: 2,
+              children: [
+                // In Stock badge
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
+                    color: Colors.green.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    '🔧 ${product.inUse} in use',
-                    style: const TextStyle(color: Colors.amberAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                    '✓ ${product.inStock} stock',
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
                   ),
                 ),
-              // Custom Tag badge (e.g. Robot 1)
-              if (product.customQty > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
+                // In Use badge (if any)
+                if (product.inUse > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '🔧 ${product.inUse} in use',
+                      style: const TextStyle(color: Colors.amberAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  child: Text(
-                    '📍 ${product.customQty} ${product.customLabel ?? "Custom"}',
-                    style: const TextStyle(color: Colors.purpleAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                // Custom Tag badge (e.g. Robot 1)
+                if (product.customQty > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '📍 ${product.customQty} ${product.customLabel ?? "Custom"}',
+                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
           const Spacer(),
 
@@ -1200,7 +1292,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           const SizedBox(height: 4),
 
-          // Action Buttons Bar
+          // Action Buttons Bar with PROMINENT 'USE' BUTTON
           Row(
             children: [
               // Datasheet Icon/Button
@@ -1242,9 +1334,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 4),
+
+              // PROMINENT 'USE' BUTTON
+              if (!isViewOnly)
+                InkWell(
+                  onTap: () => _openQuickStatusDialog(product),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: Colors.amberAccent,
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amberAccent.withValues(alpha: 0.35),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.build_circle_rounded, size: 11, color: Colors.black),
+                        SizedBox(width: 3),
+                        Text(
+                          'USE',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: Colors.black,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const Spacer(),
 
-              // Edit (visible) + 3-Dot Menu (Edit Status & Tags, Full Edit, Delete)
+              // Edit (visible handy) + 3-Dot Menu
               if (!isViewOnly) ...[
                 InkWell(
                   onTap: () => _openAddProductDialog(product),
@@ -1272,9 +1402,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       value: 'status',
                       child: Row(
                         children: [
-                          Icon(Icons.tune_rounded, color: Colors.amberAccent, size: 16),
+                          Icon(Icons.build_circle_rounded, color: Colors.amberAccent, size: 16),
                           SizedBox(width: 8),
-                          Text('Edit Status & Tags', style: TextStyle(color: Colors.white, fontSize: 13)),
+                          Text('Categorize / Use Item', style: TextStyle(color: Colors.white, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -1308,5 +1438,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+}
 }
 
