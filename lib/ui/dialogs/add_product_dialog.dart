@@ -32,11 +32,6 @@ class _AddProductDialogState extends State<AddProductDialog> {
   final _datasheetUrlController = TextEditingController();
   final _notesController = TextEditingController();
 
-  // Status Breakdown Controllers
-  final _inUseController = TextEditingController(text: '0');
-  final _customQtyController = TextEditingController(text: '0');
-  final _customLabelController = TextEditingController();
-
   bool _showMoreInfo = false;
   String _datasheetType = 'link'; // 'link' or 'file'
   String? _selectedFileName;
@@ -51,14 +46,6 @@ class _AddProductDialogState extends State<AddProductDialog> {
     'Motor Drivers',
     'Wireless & RF',
     'Mechanical Parts',
-  ];
-
-  final List<String> _presetCustomLabels = [
-    'Robot 1',
-    'Robot 2',
-    'Test Bench',
-    'Arena Kit',
-    'Drone Frame',
   ];
 
   @override
@@ -79,17 +66,13 @@ class _AddProductDialogState extends State<AddProductDialog> {
       if (p.datasheetType != null) _datasheetType = p.datasheetType!;
       if (p.datasheetName != null) _selectedFileName = p.datasheetName!;
       if (p.notes != null) _notesController.text = p.notes!;
-      _inUseController.text = p.inUse.toString();
-      _customQtyController.text = p.customQty.toString();
-      if (p.customLabel != null) _customLabelController.text = p.customLabel!;
 
       // Automatically expand "More Info" if existing product has extra metadata
       if (p.subcategory != null ||
           p.location != null ||
           p.company != null ||
           p.datasheetUrl != null ||
-          p.notes != null ||
-          p.hasStatusBreakdown) {
+          p.notes != null) {
         _showMoreInfo = true;
       }
     }
@@ -105,9 +88,6 @@ class _AddProductDialogState extends State<AddProductDialog> {
     _companyController.dispose();
     _datasheetUrlController.dispose();
     _notesController.dispose();
-    _inUseController.dispose();
-    _customQtyController.dispose();
-    _customLabelController.dispose();
     super.dispose();
   }
 
@@ -165,9 +145,9 @@ class _AddProductDialogState extends State<AddProductDialog> {
     final comp = _companyController.text.trim();
     final datasheet = _datasheetUrlController.text.trim();
     final notes = _notesController.text.trim();
-    final inUse = int.tryParse(_inUseController.text.trim()) ?? 0;
-    final customQty = int.tryParse(_customQtyController.text.trim()) ?? 0;
-    final customLabel = _customLabelController.text.trim();
+    final inUse = widget.existingProduct?.inUse ?? 0;
+    final customQty = widget.existingProduct?.customQty ?? 0;
+    final customLabel = widget.existingProduct?.customLabel;
 
     final product = Product(
       id: widget.existingProduct?.id ?? 'prod_${DateTime.now().millisecondsSinceEpoch}',
@@ -185,7 +165,7 @@ class _AddProductDialogState extends State<AddProductDialog> {
       createdAt: widget.existingProduct?.createdAt ?? DateTime.now(),
       inUse: inUse,
       customQty: customQty,
-      customLabel: customLabel.isNotEmpty ? customLabel : null,
+      customLabel: customLabel,
     );
 
     widget.onSaved(product);
@@ -472,128 +452,7 @@ class _AddProductDialogState extends State<AddProductDialog> {
                         const SizedBox(height: 12),
                       ],
 
-                      // 2. Status Breakdown (In Use & Custom Location)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: const [
-                                Icon(Icons.pie_chart_outline_rounded, color: Colors.amberAccent, size: 15),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Status & Location Tagging (In Use / Deployed)',
-                                  style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 11),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // In Use Qty
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: TextField(
-                                    controller: _inUseController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                                    decoration: InputDecoration(
-                                      labelText: 'Qty In Use',
-                                      labelStyle: const TextStyle(color: Colors.amberAccent, fontSize: 11),
-                                      prefixIcon: const Icon(Icons.build_circle_outlined, color: Colors.amberAccent, size: 15),
-                                      filled: true,
-                                      fillColor: const Color(0xFF1E293B),
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  flex: 6,
-                                  child: Text(
-                                    'Items currently mounted on robots or in testing',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 10),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Custom Tag Qty + Custom Label
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: TextField(
-                                    controller: _customQtyController,
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                                    decoration: InputDecoration(
-                                      labelText: 'Custom Qty',
-                                      labelStyle: const TextStyle(color: Colors.purpleAccent, fontSize: 11),
-                                      prefixIcon: const Icon(Icons.label_outline, color: Colors.purpleAccent, size: 15),
-                                      filled: true,
-                                      fillColor: const Color(0xFF1E293B),
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  flex: 6,
-                                  child: TextField(
-                                    controller: _customLabelController,
-                                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                                    decoration: InputDecoration(
-                                      labelText: 'Custom Tag (e.g. Robot1)',
-                                      labelStyle: const TextStyle(color: Colors.grey, fontSize: 11),
-                                      filled: true,
-                                      fillColor: const Color(0xFF1E293B),
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-
-                            // Preset tag chips
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: _presetCustomLabels.map((lbl) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 5.0),
-                                    child: ActionChip(
-                                      label: Text(lbl, style: const TextStyle(fontSize: 10, color: Colors.purpleAccent)),
-                                      backgroundColor: const Color(0xFF1E293B),
-                                      side: BorderSide(color: Colors.purpleAccent.withValues(alpha: 0.3)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                      onPressed: () => setState(() => _customLabelController.text = lbl),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 3. Subcategory
+                      // 2. Subcategory
                       TextField(
                         controller: _subcategoryController,
                         style: const TextStyle(color: Colors.white, fontSize: 13),

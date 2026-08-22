@@ -1095,8 +1095,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.fromLTRB(10, 2, 10, 80),
                   sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 220, // Forces exactly 2 tiles on mobile width (360-450px)
-                      mainAxisExtent: 215, // Comfortable compact vertical height
+                      maxCrossAxisExtent: 220, // Forces 2 columns on mobile screen
+                      mainAxisExtent: 172, // Perfect height without awkward blank gaps
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
@@ -1132,7 +1132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Compact 2-Column Tile Card
+  // Minimalistic & Legible 2-Column Tile Card
   Widget _buildCompactTile(Product product, bool isViewOnly) {
     final hasDatasheet = product.datasheetUrl != null && product.datasheetUrl!.isNotEmpty;
     final isLowStock = product.quantity <= 3;
@@ -1140,7 +1140,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final totalVal = cost * product.quantity;
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(10),
@@ -1162,7 +1162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 13.5,
                     height: 1.2,
                   ),
                   maxLines: 2,
@@ -1174,7 +1174,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: isLowStock ? Colors.amber.withValues(alpha: 0.2) : Colors.cyan.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: isLowStock ? Colors.amberAccent : Colors.cyanAccent),
                 ),
                 child: Text(
@@ -1182,7 +1182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(
                     color: isLowStock ? Colors.amberAccent : Colors.cyanAccent,
                     fontWeight: FontWeight.bold,
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                 ),
               ),
@@ -1190,50 +1190,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 4),
 
-          // Tappable Status breakdown visible directly under item name
+          // Tappable Status breakdown directly under item name
           InkWell(
             onTap: () => _openQuickStatusDialog(product),
             borderRadius: BorderRadius.circular(4),
             child: Wrap(
-              spacing: 3,
+              spacing: 4,
               runSpacing: 2,
               children: [
                 // In Stock badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     '✓ ${product.inStock} stock',
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Colors.greenAccent, fontSize: 9.5, fontWeight: FontWeight.bold),
                   ),
                 ),
                 // In Use badge (if any)
                 if (product.inUse > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: Colors.amber.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       '🔧 ${product.inUse} in use',
-                      style: const TextStyle(color: Colors.amberAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.amberAccent, fontSize: 9.5, fontWeight: FontWeight.bold),
                     ),
                   ),
                 // Custom Tag badge (e.g. Robot 1)
                 if (product.customQty > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: Colors.purple.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       '📍 ${product.customQty} ${product.customLabel ?? "Custom"}',
-                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 8.5, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 9.5, fontWeight: FontWeight.bold),
                     ),
                   ),
               ],
@@ -1241,36 +1241,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const Spacer(),
 
-          // Subcategory & Company Micro-badges
+          // Subcategory & Brand (Single clean line)
           if (product.subcategory != null || product.company != null)
-            Wrap(
-              spacing: 4,
-              runSpacing: 3,
+            Row(
               children: [
                 if (product.subcategory != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      product.subcategory!,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 9),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  Text(
+                    product.subcategory!,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 10, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                if (product.subcategory != null && product.company != null)
+                  Text(' • ', style: TextStyle(color: Colors.grey[600], fontSize: 10)),
                 if (product.company != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                  Expanded(
                     child: Text(
                       product.company!,
-                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 9),
+                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.w500),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1280,22 +1268,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 2),
 
           // Cost Info
-          if (product.cost != null) ...[
+          if (product.cost != null)
             Text(
               '₹${cost.toStringAsFixed(0)} / unit • Tot: ₹${totalVal.toStringAsFixed(0)}',
-              style: const TextStyle(color: Colors.greenAccent, fontSize: 9.5, fontWeight: FontWeight.w600),
-            ),
-          ] else
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w600),
+            )
+          else
             const Text(
               'No cost recorded',
-              style: TextStyle(color: Colors.grey, fontSize: 9),
+              style: TextStyle(color: Colors.grey, fontSize: 9.5),
             ),
           const SizedBox(height: 4),
 
           // Action Buttons Bar with PROMINENT 'USE' BUTTON
           Row(
             children: [
-              // Datasheet Icon/Button
+              // Datasheet Button
               InkWell(
                 onTap: () {
                   showDialog(
@@ -1325,7 +1313,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Text(
                         'PDF',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 9.5,
                           color: hasDatasheet ? Colors.cyanAccent : Colors.grey,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1349,7 +1337,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       boxShadow: [
                         BoxShadow(
                           color: Colors.amberAccent.withValues(alpha: 0.35),
-                          blurRadius: 4,
+                          blurRadius: 3,
                           offset: const Offset(0, 1),
                         ),
                       ],
@@ -1362,7 +1350,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Text(
                           'USE',
                           style: TextStyle(
-                            fontSize: 9.5,
+                            fontSize: 10,
                             color: Colors.black,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5,
