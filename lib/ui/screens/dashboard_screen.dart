@@ -1095,8 +1095,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.fromLTRB(10, 2, 10, 80),
                   sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 220, // Forces 2 columns on mobile screen
-                      mainAxisExtent: 172, // Perfect height without awkward blank gaps
+                      maxCrossAxisExtent: 220, // 2 columns on mobile screens
+                      mainAxisExtent: 195, // Ample height to clearly fit all extra info tags
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
@@ -1132,7 +1132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Minimalistic & Legible 2-Column Tile Card
+  // Minimalistic, Comprehensive & Legible 2-Column Tile Card
   Widget _buildCompactTile(Product product, bool isViewOnly) {
     final hasDatasheet = product.datasheetUrl != null && product.datasheetUrl!.isNotEmpty;
     final isLowStock = product.quantity <= 3;
@@ -1239,33 +1239,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 4),
 
-          // Subcategory & Brand (Single clean line)
-          if (product.subcategory != null || product.company != null)
-            Row(
+          // Extra Info Chips: Subcategory, Brand/Company, Location/Bin
+          if (product.subcategory != null || product.company != null || product.location != null)
+            Wrap(
+              spacing: 4,
+              runSpacing: 3,
               children: [
                 if (product.subcategory != null)
-                  Text(
-                    product.subcategory!,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 10, fontWeight: FontWeight.w500),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                if (product.subcategory != null && product.company != null)
-                  Text(' • ', style: TextStyle(color: Colors.grey[600], fontSize: 10)),
-                if (product.company != null)
-                  Expanded(
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.white12),
+                    ),
                     child: Text(
-                      product.company!,
-                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.w500),
+                      '📁 ${product.subcategory!}',
+                      style: TextStyle(color: Colors.grey[300], fontSize: 9.5, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if (product.company != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '🏢 ${product.company!}',
+                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 9.5, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if (product.location != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '📍 ${product.location!}',
+                      style: const TextStyle(color: Colors.blueAccent, fontSize: 9.5, fontWeight: FontWeight.w500),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
               ],
             ),
-          const SizedBox(height: 2),
+
+          // Extra Info: Notes snippet
+          if (product.notes != null && product.notes!.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              '📝 ${product.notes!}',
+              style: TextStyle(color: Colors.grey[400], fontSize: 9.5, fontStyle: FontStyle.italic),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const Spacer(),
 
           // Cost Info
           if (product.cost != null)
